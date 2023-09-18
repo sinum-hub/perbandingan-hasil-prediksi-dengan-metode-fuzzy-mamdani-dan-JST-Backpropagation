@@ -1,0 +1,259 @@
+import numpy as np
+import time
+from JST import JaringanSyarafTiruan, DPreparation, DTransformation
+from matplotlib import pyplot as plt
+import pandas as pd
+np.set_printoptions(suppress=True, linewidth=np.inf)
+
+#menciptakan objek dari kelas JST
+jst = JaringanSyarafTiruan()
+pre = DPreparation()
+tra = DTransformation()
+
+#pendefinisian proses mulai normalisasi
+def Pronor(data):
+  #mengakses data berdasarkan kolom/parameter
+  Tahun = data[:, 0]
+  x1   = data[:, 1]
+  x2   = data[:, 2]
+  x3   = data[:, 3]
+  x4   = data[:, 4]
+  IPM  = data[:, 5]
+
+  #normalisasi data menggunakan fungsi Normalisasi kelas JST
+  x1  = tra.Normalisasi(x1)
+  x2  = tra.Normalisasi(x2)
+  x3  = tra.Normalisasi(x3)
+  x4  = tra.Normalisasi(x4)
+  IPM  = tra.Normalisasi(IPM)
+
+ #menggabungkan data-data normalisasi menjadi dataset
+  data_normalisasi = np.concatenate((x1, x2, x3, x4, IPM), axis=1)
+        
+  return data_normalisasi, x1, x2, x3, x4, IPM
+
+#inisialisasi parameter-parameter JST
+n_input   = 4
+n_hidden  = 3
+n_output  = 1
+alpha     = 0.15
+min_error = 0.001
+iterasi   = 200
+
+#import data latih dan data training
+np.set_printoptions(suppress=True, linewidth=np.inf) #agar nilai tidak bernotasi scientific
+data_latih = pd.read_csv('IPMLat.csv', sep=',') #membaca data dari file csv
+data_latih = np.array(data_latih) #mengubah menjadi array
+"""
+#inisialisasi data latih
+data_latih = np.array([
+[2010, 74.14,	14.15,	8.51,	12.080,	75.37],
+[2011, 74.26,	14.61,	8.53,	12.115,	75.93],
+[2012, 74.36,	14.64,	8.63,	12.137,	76.15],
+[2013, 74.45,	14.67,	8.72,	12.261,	76.44],
+[2014, 74.5,	14.85,	8.84,	12.294,	76.81],
+[2015, 74.68,	15.03,	9,	12.684,	77.59],
+[2016, 74.71,	15.23,	9.12,	13.229,	78.38],
+[2017, 74.74,	15.42,	9.19,	13.521,	78.89]])
+"""
+data = data_latih
+
+""" #inisialisasi awal bobot V dan bobot W
+v = np.array([
+[0.1, 0.2, 0.3,
+[0.1, 0.2, 0.3],
+[-0.2, -0.1, -0.4],
+[-0.3, -0.2, -0.3]])
+
+w = np.array([[0.3], [0.2], [-0.3], [-0.4], [0.3]]) """
+[v, w] = pre.Acakbobot(n_input, n_hidden, n_output)
+
+total_data  = len(data)
+n_datalatih = total_data
+
+#menentukan data latih dan target output
+data_normalisasi, x1, x2, x3, x4, IPM = Pronor(data)
+
+input_latih       = data_normalisasi[:, 0:4]
+target_output     = data_normalisasi[:, 4]
+
+
+#program dimulai
+print ('------------------------------------------------------------------------------------------------------------')
+print ('                                Parameter JST Backpropagation                                               ')
+print ('------------------------------------------------------------------------------------------------------------')
+print ()
+print (f"Neuron Input                : {n_input}")
+print (f"Neuron Hidden               : {n_hidden}")
+print (f"Neuron Output               : {n_output}")
+print (f"Laju Pembelajaran (alpha)   : {alpha}")
+print (f"Minimum Error               : {min_error:6f}")
+print (f"Iterasi                     : {iterasi}")
+print()
+print ('Data Latih : ')
+print (input_latih)
+print()
+""" print ('Target Output : ')
+print (target_output)
+print() """
+print ('Bobot V : ')
+print (v)
+print()
+print ('Bobot W : ')
+print (w)
+print()
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------
+print ('------------------------------------------------------------------------------------------------------------')
+print ('                                PROSES PELATIHAN                                                            ')
+error = np.zeros((n_datalatih,1))
+mse = np.zeros((iterasi,1))
+jml_iterasi = 0
+
+time_start = time.perf_counter()
+for i in range (iterasi):
+    print ('Iterasi ke-', (i+1))
+    for j in range(n_datalatih):
+      #  print ('data ke-',j+1)
+        [z, y] = jst.Feedforward(input_latih[j,:], v, w, n_hidden, n_output)
+        [w, v] = jst.Backpropagation(target_output[j], y, input_latih[j,:], alpha, z, w, v)
+        error[j,0] = (target_output[j]-y[0,0])**2
+      #  print ('target  : ', target_output[j])
+
+      #  print ('Z :')
+      #  print (z)
+      #  print ('Y       :',y)
+      #  print ('error   : {0:0.8f}'.format(float(error[j,0])))
+      #  print ()
+      #  print ('Bobot W Baru :')
+      #  print (w)
+      #  print ()
+      #  print ('Bobot V Baru :')
+      #  print (v)
+      #  print ()
+
+    mse[i,0] = round(sum(error[:, 0])/n_datalatih, 7)
+    print (f"MSE : {mse[i,0]:0.7f}")
+
+    if mse[i,0] <= min_error:
+        jml_iterasi = i+1
+        break
+    jml_iterasi = i+1
+
+time_stop = (time.perf_counter() - time_start)
+
+#menampilkan grafik konvergensi proses pelatihan
+plt.figure()
+plt.plot(mse[0:jml_iterasi, 0])
+plt.ylim(ymin=0)
+plt.xlabel('Iterasi ke-i, (0 < i < '+str(jml_iterasi)+')')
+plt.ylabel('MSE')
+plt.title('Grafik Konvergensi Proses Pelatihan')
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------
+print()
+print ('------------------------------------------------------------------------------------------------------------')
+print ('                                PROSES PENGUJIAN                                                            ')
+"""
+#data pengujian
+data_uji = np.array([
+[2010, 74.14,	14.15,	8.51,	12.080,	75.37],
+[2011, 74.26,	14.61,	8.53,	12.115,	75.93],
+[2012, 74.36,	14.64,	8.63,	12.137,	76.15],
+[2013, 74.45,	14.67,	8.72,	12.261,	76.44],
+[2014, 74.5,	14.85,	8.84,	12.294,	76.81],
+[2015, 74.68,	15.03,	9,	12.684,	77.59],
+[2016, 74.71,	15.23,	9.12,	13.229,	78.38],
+[2017, 74.74,	15.42,	9.19,	13.521,	78.89]
+[2018, 74.82, 15.56, 9.32, 13.946, 79.53]
+[2019, 74.92, 15.58, 9.38, 14.394, 79.99]
+[2020, 74.99, 15.59, 9.55, 14.015, 74.97]])
+"""
+np.set_printoptions(suppress=True, linewidth=np.inf) #agar nilai tidak bernotasi scientific
+data_uji = pd.read_csv('IPMVal.csv', sep=',') #membaca data dari file csv
+data_uji = np.array(data_uji) #mengubah menjadi array
+print ("Data pengujian :")
+print (data_uji)
+print()
+
+#mengabungkan data latih dengan data uji
+data = np.concatenate((data, data_uji))
+
+#total data pengujian
+total_datauji = len(data_uji)
+n_datauji = total_datauji
+
+#normalisasi data uji
+datauji_normalisasi, x1u, x2u, x3u, x4u, IPMu = Pronor(data)
+
+input_uji = datauji_normalisasi[n_datalatih:, 0:4]
+""" print ("ini input uji:")
+print (input_uji) """
+output_sebenarnya = datauji_normalisasi[n_datalatih:, 4]
+
+#memetakan array/matriks
+hasil_prediksi = np.zeros((n_datauji, 1))
+kum_error = np.zeros((n_datauji, 1))
+
+#melakukan proses feedforward atau prediksi
+for j in range(n_datauji):
+  [z, y] = jst.Feedforward(input_uji[j,:], v, w, n_hidden, n_output)
+  hasil_prediksi[j,0] = y[0,0]
+""" print ("hasil prediksi :")
+print (hasil_prediksi)
+print() """
+
+#melakukan denormalisasi hasil prediksi dan data sebenarnya
+IPMuji = data[:, 5]
+datamax = max(IPMuji)
+datamin = min(IPMuji)
+""" print ("datamax :")
+print (datamax)
+print ("datamin :")
+print (datamin)
+print() """
+
+#memetakan array/matriks
+hslprediksi_denormalisasi = np.zeros((n_datauji,1))
+outsebenarnya_denormalisasi = np.zeros((n_datauji,1))
+
+#proses denormalisasi
+for i in range(n_datauji):
+  hslprediksi_denormalisasi[i,0] = tra.Denormalisasi(hasil_prediksi[i,0], datamin, datamax)
+  outsebenarnya_denormalisasi[i,0] = tra.Denormalisasi(output_sebenarnya[i], datamin, datamax)
+
+#menampilkan hasil prediksi
+print ("Data ke- \t AHH \t HLS \t\t RLS \t\t PPD \t OutputJST \t Output Sebenarnya \t Error")
+for i in range(n_datauji):
+  hasiljst = hslprediksi_denormalisasi[i,0]
+  datasebenarnya = outsebenarnya_denormalisasi[i,0]
+  errorhasil = abs(datasebenarnya-hasiljst)
+  errorhasil = round(errorhasil, 6)
+  kum_error[i,0] = abs((datasebenarnya-hasiljst)/datasebenarnya)
+  print ((i+1), "\t\t", input_uji[i,0], "\t", input_uji[i,1], "\t", input_uji[i,2], "\t", input_uji[i,3], "\t", hasiljst, "\t", datasebenarnya, "\t", errorhasil)
+
+print()
+
+MAPE  = ((sum(kum_error)/n_datauji) * 100) #menghitung MAPE
+akurasi = 100 - ((sum(kum_error)/n_datauji) * 100) #menghitung akurasi
+akurasi = float(akurasi[0])
+""" print ("kumulasi error :")
+print (kum_error) """
+print (f"MAPE  : {MAPE} %")
+print (f"Akurasi prediksi : {akurasi:0.2f} %")
+print (f"Waktu Pelatihan : {time_stop} menit")
+
+#menampilkan grafik konvergensi proses pengujian
+y1 = hslprediksi_denormalisasi
+y2 = outsebenarnya_denormalisasi
+x_tmp = list(range(1, n_datauji+1))
+x = np.array([x_tmp]).transpose()
+
+plt.figure()
+plt.plot(x, y1, 'r', x, y2, 'g')
+plt.ylim(ymin=0)
+plt.xlabel('Data Uji Ke-i, (0 < i < '+str(n_datauji)+')')
+plt.ylabel('Hasil Prediksi')
+plt.title('Grafik Perbandingan Hasil Prediksi JST dan Data Sebenarnya')
+plt.legend(('Hasil Prediksi JST', 'Data Sebenarnya'), loc='under right')
+plt.show()
